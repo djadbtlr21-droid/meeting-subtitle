@@ -3,6 +3,7 @@ import ControlPanel from './components/ControlPanel.jsx';
 import SubtitleOverlay from './components/SubtitleOverlay.jsx';
 import CameraView from './components/CameraView.jsx';
 import FaceHudOverlay from './components/FaceHudOverlay.jsx';
+import InstallPrompt from './components/InstallPrompt.jsx';
 import { useSpeechRecognition, isSpeechSupported } from './hooks/useSpeechRecognition.js';
 import { useCamera, requestInitialPermissions } from './hooks/useCamera.js';
 import { translate } from './lib/gemini.js';
@@ -141,6 +142,8 @@ export default function App() {
         fontScale={fontScale}
         listening={listening}
       />
+
+      <InstallPrompt />
 
       <ControlPanel
         listening={listening}
