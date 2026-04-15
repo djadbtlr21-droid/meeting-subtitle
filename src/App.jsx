@@ -12,8 +12,8 @@ import { detectLang, otherLang, SPEECH_LANG } from './lib/detectLang.js';
 export default function App() {
   const [sourceLang, setSourceLang] = useState('ko');
   const [fontScale, setFontScale] = useState(1);
-  const [original, setOriginal] = useState('');
-  const [translation, setTranslation] = useState('');
+  const [history, setHistory] = useState([]);
+  const [pendingOriginal, setPendingOriginal] = useState('');
   const [translating, setTranslating] = useState(0);
   const [translateError, setTranslateError] = useState(null);
   const [errorVisible, setErrorVisible] = useState(false);
@@ -30,7 +30,7 @@ export default function App() {
     if (text === lastSentRef.current) return;
     lastSentRef.current = text;
 
-    setOriginal(text);
+    setPendingOriginal(text);
 
     const detected = detectLang(text, sourceLang);
     const target = otherLang(detected);
@@ -39,7 +39,11 @@ export default function App() {
     setTranslateError(null);
     try {
       const out = await translate(text, detected, target);
-      setTranslation(out);
+      setHistory((prev) => [
+        ...prev,
+        { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, original: text, translation: out },
+      ]);
+      setPendingOriginal('');
     } catch (err) {
       setTranslateError(err.message || '번역 실패');
     } finally {
@@ -96,23 +100,39 @@ export default function App() {
     ? '카메라를 사용할 수 없습니다'
     : '카메라 꺼짐';
 
+  const latestTranslation = history.length > 0 ? history[history.length - 1].translation : '';
+  const hasAnyContent = history.length > 0 || !!pendingOriginal || !!interim;
+
   return (
-    <div className="fixed inset-0 w-full h-full bg-[#0a0a0a] text-white overflow-hidden">
-      <CameraView
-        stream={camera.stream}
-        enabled={camera.enabled}
-        facing={camera.facing}
-        fallbackMessage={fallbackMsg}
-      />
+    <div className="fixed inset-0 w-full h-full bg-[#0a0a0a] text-white overflow-hidden flex flex-col">
+      <div className="relative w-full h-1/2 overflow-hidden">
+        <CameraView
+          stream={camera.stream}
+          enabled={camera.enabled}
+          facing={camera.facing}
+          fallbackMessage={fallbackMsg}
+        />
 
-      <FaceHudOverlay
-        active={camera.enabled && !!camera.stream}
-        voiceDetected={listening}
-        translating={translating > 0}
-        hasTranslation={!!translation && translating === 0}
-      />
+        <FaceHudOverlay
+          active={camera.enabled && !!camera.stream}
+          voiceDetected={listening}
+          translating={translating > 0}
+          hasTranslation={!!latestTranslation && translating === 0}
+        />
 
-      <BrandMark />
+        <BrandMark />
+      </div>
+
+      <div className="relative w-full h-1/2 overflow-hidden">
+        <SubtitleOverlay
+          history={history}
+          pendingOriginal={pendingOriginal}
+          interim={interim}
+          fontScale={fontScale}
+          listening={listening}
+          translating={translating > 0}
+        />
+      </div>
 
       {errorVisible && combinedError && (
         <div className="pointer-events-none absolute top-3 inset-x-0 z-40 flex justify-center px-4">
@@ -134,14 +154,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      <SubtitleOverlay
-        original={original}
-        translation={translation}
-        interim={interim}
-        fontScale={fontScale}
-        listening={listening}
-      />
 
       <InstallPrompt />
 
