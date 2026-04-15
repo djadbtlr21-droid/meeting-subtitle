@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
-import App from './App.jsx';
+import App from './AppV2.jsx';
 import './index.css';
 
 registerSW({
