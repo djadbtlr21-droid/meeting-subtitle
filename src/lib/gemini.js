@@ -1,7 +1,7 @@
 import { LANG_NAMES } from './detectLang.js';
 
 const ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
 
 const cache = new Map();
 const CACHE_MAX = 50;
