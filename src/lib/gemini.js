@@ -1,7 +1,8 @@
 import { LANG_NAMES } from './detectLang.js';
 
+const MODEL = 'gemini-2.5-flash';
 const ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
+  `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const cache = new Map();
 const CACHE_MAX = 50;
@@ -42,13 +43,40 @@ export async function translate(text, source, target) {
   });
 
   if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Gemini ${res.status}: ${errText.slice(0, 200)}`);
+    let payload;
+    try {
+      payload = await res.json();
+    } catch {
+      payload = { raw: await res.text().catch(() => '') };
+    }
+    const apiMsg = payload?.error?.message || payload?.raw || '(no body)';
+    const apiStatus = payload?.error?.status || '';
+    // eslint-disable-next-line no-console
+    console.error('[Gemini error]', {
+      http: res.status,
+      model: MODEL,
+      status: apiStatus,
+      payload,
+    });
+    const suffix = apiStatus ? ` ${apiStatus}` : '';
+    throw new Error(`Gemini ${res.status}${suffix}: ${apiMsg.slice(0, 300)}`);
   }
 
   const data = await res.json();
+
+  const blockReason = data?.promptFeedback?.blockReason;
+  if (blockReason) {
+    throw new Error(`Gemini blocked: ${blockReason}`);
+  }
+
   const out =
     data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('').trim() || '';
+
+  if (!out) {
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    // eslint-disable-next-line no-console
+    console.warn('[Gemini empty response]', { finishReason, data });
+  }
 
   rememberCache(key, out);
   return out;
