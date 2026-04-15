@@ -37,19 +37,24 @@ export function useSpeechRecognition({ lang, onFinal } = {}) {
     rec.lang = langRef.current || 'ko-KR';
 
     rec.onresult = (event) => {
+      // Strict split: isFinal===true → commit sentence via onFinal (translation trigger).
+      // isFinal===false → interim live-preview only; NEVER trigger translation.
       let interimText = '';
+      let sawFinal = false;
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         const transcript = result[0]?.transcript ?? '';
         if (result.isFinal) {
+          sawFinal = true;
           const clean = transcript.trim();
           if (clean.length > 1) onFinalRef.current?.(clean);
-          setInterim('');
         } else {
           interimText += transcript;
         }
       }
-      if (interimText) setInterim(interimText);
+      // Clear interim on final; otherwise mirror the latest interim buffer.
+      if (sawFinal && !interimText) setInterim('');
+      else setInterim(interimText);
     };
 
     rec.onerror = (event) => {
