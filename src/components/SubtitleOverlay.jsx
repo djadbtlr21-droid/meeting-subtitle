@@ -3,7 +3,7 @@ import React from 'react';
 export default function SubtitleOverlay({ original, translation, interim, fontScale, listening }) {
   const base = 17;
   const originalSize = base * fontScale;
-  const translationSize = base * 1.55 * fontScale;
+  const translationSize = base * 1.705 * fontScale;
 
   const isInterimOnly = !original && !!interim;
   const displayedOriginal = original || interim || '';
