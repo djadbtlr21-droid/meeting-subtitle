@@ -3,7 +3,7 @@
 화상회의에서 한국어 ↔ 중국어 실시간 자막 + 번역을 화면 하단에 오버레이로 띄워주는 PWA 웹앱입니다.
 
 - **음성 인식**: Web Speech API (브라우저 내장, 무료)
-- **번역**: Gemini API (`gemini-2.0-flash`)
+- **번역**: Gemini API (`gemini-3-flash-preview`)
 - **프론트엔드**: React 18 + Vite 5 + Tailwind CSS 3
 - **PWA**: 모바일 홈화면 추가 → 풀스크린 실행 가능
 
@@ -116,7 +116,7 @@ git push -u origin main
 - **iOS Safari**: Web Speech API가 불안정. 인식이 자주 끊기고 정확도가 낮습니다. → **Android 또는 PC Chrome 권장**.
 - **언어 자동 감지**: Web Speech API는 실제로는 한 번에 한 언어만 인식합니다. 주 발화자가 한국어면 "한국어" 선택, 중국어면 "中文" 선택하세요. 두 언어를 번갈아 쓰는 회의라면 발언 전환 시 셀렉트를 바꿔주세요.
 - **API 키 노출**: `VITE_*` 변수는 최종 번들에 포함됩니다. Google Cloud 콘솔에서 **HTTP 리퍼러 제한**을 반드시 설정하세요. 엄격한 보안이 필요하면 Vercel Serverless Function으로 프록시 레이어를 추가하는 것이 안전합니다.
-- **Gemini 무료 티어**: `gemini-2.0-flash`는 분당 10 RPM 제한. 정상적인 회의 대화(발언 간 1~3초 간격)에서는 충분합니다.
+- **Gemini 무료 티어**: `gemini-3-flash-preview`는 분당 RPM 제한이 있습니다. 정상적인 회의 대화(발언 간 1~3초 간격)에서는 충분합니다.
 
 ## 7. 프로젝트 구조
 
