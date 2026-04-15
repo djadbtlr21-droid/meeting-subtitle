@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ControlPanel from './components/ControlPanel.jsx';
 import SubtitleOverlay from './components/SubtitleOverlay.jsx';
+import CameraView from './components/CameraView.jsx';
 import { useSpeechRecognition, isSpeechSupported } from './hooks/useSpeechRecognition.js';
+import { useCamera, requestInitialPermissions } from './hooks/useCamera.js';
 import { translate } from './lib/gemini.js';
 import { detectLang, otherLang, SPEECH_LANG } from './lib/detectLang.js';
 
@@ -14,6 +16,11 @@ export default function App() {
   const [translateError, setTranslateError] = useState(null);
 
   const lastSentRef = useRef('');
+  const initializedRef = useRef(false);
+
+  const camera = useCamera();
+  const cameraStartRef = useRef(camera.start);
+  cameraStartRef.current = camera.start;
 
   const handleFinal = useCallback(async (text) => {
     if (!text || text.length < 2) return;
@@ -37,13 +44,20 @@ export default function App() {
     }
   }, [sourceLang]);
 
-  const { listening, interim, error, start, stop, supported } = useSpeechRecognition({
-    lang: SPEECH_LANG[sourceLang],
-    onFinal: handleFinal,
-  });
+  const { listening, interim, error: speechError, start, stop, supported: speechSupported } =
+    useSpeechRecognition({
+      lang: SPEECH_LANG[sourceLang],
+      onFinal: handleFinal,
+    });
 
+  // 마운트 시 카메라 + 마이크 권한을 동시에 요청한 후 카메라 자동 시작
   useEffect(() => {
-    if (!isSpeechSupported) return;
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    (async () => {
+      await requestInitialPermissions();
+      cameraStartRef.current?.();
+    })();
   }, []);
 
   const handleStart = useCallback(() => {
@@ -52,15 +66,33 @@ export default function App() {
   }, [start]);
 
   let status = 'idle';
-  if (error || translateError) status = 'error';
+  if (speechError || translateError) status = 'error';
   else if (translating > 0) status = 'translating';
   else if (listening) status = 'listening';
 
-  const combinedError = error || translateError ||
-    (!supported ? '이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 또는 Edge를 사용해주세요.' : null);
+  const combinedError =
+    speechError ||
+    translateError ||
+    camera.error ||
+    (!speechSupported
+      ? '이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 또는 Edge를 사용해주세요.'
+      : null);
+
+  const fallbackMsg = !camera.supported
+    ? '카메라 미지원 브라우저'
+    : camera.error
+    ? '카메라를 사용할 수 없습니다'
+    : '카메라 꺼짐';
 
   return (
-    <div className="min-h-screen w-full bg-neutral-900 text-white relative">
+    <div className="fixed inset-0 w-full h-full bg-black text-white overflow-hidden">
+      <CameraView
+        stream={camera.stream}
+        enabled={camera.enabled}
+        facing={camera.facing}
+        fallbackMessage={fallbackMsg}
+      />
+
       <ControlPanel
         listening={listening}
         onStart={handleStart}
@@ -71,23 +103,11 @@ export default function App() {
         onFontScaleChange={setFontScale}
         status={status}
         error={combinedError}
+        cameraEnabled={camera.enabled}
+        onToggleCamera={camera.toggle}
+        onSwitchCamera={camera.switchCamera}
+        cameraSupported={camera.supported}
       />
-
-      <main className="pt-32 sm:pt-28 px-4 pb-48 max-w-3xl mx-auto text-center text-white/60">
-        <h1 className="text-2xl sm:text-3xl font-bold mt-4 text-white">회의 자막 번역</h1>
-        <p className="mt-3 text-sm sm:text-base">
-          한국어 ↔ 중국어 실시간 자막 · Web Speech API + Gemini
-        </p>
-        <ol className="mt-6 text-left text-sm sm:text-base space-y-2 text-white/70">
-          <li>1. 상단에서 <b className="text-white">주 언어</b>(주로 말할 언어)를 선택하세요.</li>
-          <li>2. <b className="text-white">시작</b> 버튼을 누르고 마이크 권한을 허용하세요.</li>
-          <li>3. 화면 하단에 원문과 번역이 실시간으로 표시됩니다.</li>
-          <li>4. <b className="text-white">폰트 크기</b>는 우측 버튼으로 조절할 수 있습니다.</li>
-        </ol>
-        <p className="mt-6 text-xs text-white/40">
-          * 정확한 인식을 위해 HTTPS 환경(배포본 또는 localhost)에서 사용하세요.
-        </p>
-      </main>
 
       <SubtitleOverlay
         original={original}
