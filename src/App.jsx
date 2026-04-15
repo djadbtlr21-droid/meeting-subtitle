@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ControlPanel from './components/ControlPanel.jsx';
 import SubtitleOverlay from './components/SubtitleOverlay.jsx';
 import CameraView from './components/CameraView.jsx';
+import FaceHudOverlay from './components/FaceHudOverlay.jsx';
 import { useSpeechRecognition, isSpeechSupported } from './hooks/useSpeechRecognition.js';
 import { useCamera, requestInitialPermissions } from './hooks/useCamera.js';
 import { translate } from './lib/gemini.js';
@@ -14,6 +15,7 @@ export default function App() {
   const [translation, setTranslation] = useState('');
   const [translating, setTranslating] = useState(0);
   const [translateError, setTranslateError] = useState(null);
+  const [errorVisible, setErrorVisible] = useState(false);
 
   const lastSentRef = useRef('');
   const initializedRef = useRef(false);
@@ -50,7 +52,6 @@ export default function App() {
       onFinal: handleFinal,
     });
 
-  // 마운트 시 카메라 + 마이크 권한을 동시에 요청한 후 카메라 자동 시작
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
@@ -78,6 +79,16 @@ export default function App() {
       ? '이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 또는 Edge를 사용해주세요.'
       : null);
 
+  useEffect(() => {
+    if (!combinedError) {
+      setErrorVisible(false);
+      return;
+    }
+    setErrorVisible(true);
+    const t = setTimeout(() => setErrorVisible(false), 5200);
+    return () => clearTimeout(t);
+  }, [combinedError]);
+
   const fallbackMsg = !camera.supported
     ? '카메라 미지원 브라우저'
     : camera.error
@@ -85,12 +96,50 @@ export default function App() {
     : '카메라 꺼짐';
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-black text-white overflow-hidden">
+    <div className="fixed inset-0 w-full h-full bg-[#0a0a0a] text-white overflow-hidden">
       <CameraView
         stream={camera.stream}
         enabled={camera.enabled}
         facing={camera.facing}
         fallbackMessage={fallbackMsg}
+      />
+
+      <FaceHudOverlay
+        active={camera.enabled && !!camera.stream}
+        voiceDetected={listening}
+        translating={translating > 0}
+        hasTranslation={!!translation && translating === 0}
+      />
+
+      <BrandMark />
+
+      {errorVisible && combinedError && (
+        <div className="pointer-events-none absolute top-3 inset-x-0 z-40 flex justify-center px-4">
+          <div
+            className="pointer-events-auto animate-slideDown glass rounded-full px-4 py-2 flex items-center gap-2 text-hud"
+            style={{
+              fontSize: '10px',
+              color: '#FF4D6D',
+              boxShadow: '0 0 18px rgba(255,77,109,0.35), inset 0 0 0 1px rgba(255,77,109,0.35)',
+            }}
+          >
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
+              style={{ background: '#FF4D6D', boxShadow: '0 0 8px #FF4D6D' }}
+            />
+            <span className="max-w-[70vw] truncate normal-case tracking-normal font-sans text-[12px] text-white/90">
+              {combinedError}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <SubtitleOverlay
+        original={original}
+        translation={translation}
+        interim={interim}
+        fontScale={fontScale}
+        listening={listening}
       />
 
       <ControlPanel
@@ -108,13 +157,25 @@ export default function App() {
         onSwitchCamera={camera.switchCamera}
         cameraSupported={camera.supported}
       />
+    </div>
+  );
+}
 
-      <SubtitleOverlay
-        original={original}
-        translation={translation}
-        interim={interim}
-        fontScale={fontScale}
+function BrandMark() {
+  return (
+    <div className="pointer-events-none absolute top-4 left-4 z-30 flex items-center gap-2 select-none">
+      <span
+        className="inline-block w-2 h-2 rounded-sm"
+        style={{ background: '#00E5FF', boxShadow: '0 0 10px #00E5FF' }}
       />
+      <div className="flex flex-col leading-none">
+        <span className="text-hud text-white/90" style={{ fontSize: '11px' }}>
+          MEETING<span className="text-hud-cyan">.SUB</span>
+        </span>
+        <span className="text-mono-hud text-white/35 mt-1" style={{ fontSize: '8.5px' }}>
+          v0.1 · KO⇄ZH
+        </span>
+      </div>
     </div>
   );
 }
