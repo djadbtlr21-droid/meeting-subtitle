@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="cyan-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00E5FF" />
+      <stop offset="100%" stop-color="#0097B2" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Dark background with subtle radial depth -->
+  <rect width="512" height="512" rx="96" ry="96" fill="#0a0a0a" />
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#cyan-grad)" opacity="0.06" />
+
+  <!-- Corner brackets -->
+  <g stroke="#00E5FF" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.9" filter="url(#glow)">
+    <path d="M104 168 V120 Q104 104 120 104 H168" />
+    <path d="M408 168 V120 Q408 104 392 104 H344" />
+    <path d="M104 344 V392 Q104 408 120 408 H168" />
+    <path d="M408 344 V392 Q408 408 392 408 H344" />
+  </g>
+
+  <!-- Scan frame -->
+  <rect x="132" y="132" width="248" height="248" rx="32" ry="32"
+        fill="none" stroke="#00E5FF" stroke-width="2" opacity="0.35" />
+
+  <!-- Scan line -->
+  <rect x="148" y="252" width="216" height="6" rx="3" fill="#00E5FF" opacity="0.85" filter="url(#glow)" />
+
+  <!-- Subtitle bars (representing captions) -->
+  <g fill="#F5F7FA">
+    <rect x="164" y="296" width="184" height="10" rx="5" opacity="0.55" />
+    <rect x="184" y="320" width="144" height="14" rx="7" opacity="0.95" />
+  </g>
+
+  <!-- Voice/speech dot cluster top -->
+  <g fill="#00E5FF" filter="url(#glow)">
+    <circle cx="216" cy="196" r="6" />
+    <circle cx="256" cy="196" r="8" />
+    <circle cx="296" cy="196" r="6" />
+  </g>
+
+  <!-- Lime voice-active accent pip -->
+  <circle cx="256" cy="76" r="10" fill="#B4FF39" filter="url(#glow)" />
+</svg>
