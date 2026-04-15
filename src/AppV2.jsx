@@ -48,7 +48,6 @@ export default function AppV2() {
   const [sourceLang, setSourceLang] = useState('ko');
   const [fontScale, setFontScale] = useState(1);
   const [history, setHistory] = useState([]);
-  const [pendingOriginal, setPendingOriginal] = useState('');
   const [translating, setTranslating] = useState(0);
   const [translateError, setTranslateError] = useState(null);
   const [errorVisible, setErrorVisible] = useState(false);
@@ -60,13 +59,16 @@ export default function AppV2() {
   const cameraStartRef = useRef(camera.start);
   cameraStartRef.current = camera.start;
 
+  // Fires ONLY on final speech results. Append {original, translation:null}
+  // to history immediately, then fill in translation once Gemini resolves.
   const handleFinal = useCallback(
     async (text) => {
       if (!text || text.length < 2) return;
       if (text === lastSentRef.current) return;
       lastSentRef.current = text;
 
-      setPendingOriginal(text);
+      const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setHistory((prev) => [...prev, { id: entryId, original: text, translation: null, failed: false }]);
 
       const detected = detectLang(text, sourceLang);
       const target = otherLang(detected);
@@ -75,13 +77,10 @@ export default function AppV2() {
       setTranslateError(null);
       try {
         const out = await translate(text, detected, target);
-        setHistory((prev) => [
-          ...prev,
-          { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, original: text, translation: out },
-        ]);
-        setPendingOriginal('');
+        setHistory((prev) => prev.map((e) => (e.id === entryId ? { ...e, translation: out } : e)));
       } catch (err) {
         setTranslateError(err.message || '번역 실패');
+        setHistory((prev) => prev.map((e) => (e.id === entryId ? { ...e, failed: true } : e)));
       } finally {
         setTranslating((n) => Math.max(0, n - 1));
       }
@@ -175,9 +174,7 @@ export default function AppV2() {
           <div className="flex-1 min-h-0 flex flex-col pb-3">
             <SubtitleCard
               history={history}
-              pendingOriginal={pendingOriginal}
               interim={interim}
-              translating={translating > 0}
               fontScale={fontScale}
             />
           </div>
@@ -320,15 +317,15 @@ function MicChip({ listening, visible }) {
   );
 }
 
-function SubtitleCard({ history, pendingOriginal, interim, translating, fontScale }) {
+function SubtitleCard({ history, interim, fontScale }) {
   const originalBase = 16;
   // Translated text: previously 24, now 10% smaller → 21.6
   const translationBase = 21.6;
   const originalSize = originalBase * fontScale;
   const translationSize = translationBase * fontScale;
 
-  const showPending = !!pendingOriginal || !!interim;
-  const hasAny = history.length > 0 || showPending;
+  const hasInterim = !!interim;
+  const hasAny = history.length > 0 || hasInterim;
 
   const bottomRef = useRef(null);
   useEffect(() => {
@@ -337,7 +334,7 @@ function SubtitleCard({ history, pendingOriginal, interim, translating, fontScal
     requestAnimationFrame(() => {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     });
-  }, [history.length, pendingOriginal, interim]);
+  }, [history.length, history[history.length - 1]?.translation, interim]);
 
   return (
     <div
@@ -366,21 +363,17 @@ function SubtitleCard({ history, pendingOriginal, interim, translating, fontScal
             key={entry.id}
             original={entry.original}
             translation={entry.translation}
+            failed={entry.failed}
             originalSize={originalSize}
             translationSize={translationSize}
-            showDivider={idx < history.length - 1 || showPending}
+            showDivider={idx < history.length - 1 || hasInterim}
           />
         ))}
 
-        {showPending && (
-          <SubtitleEntry
-            original={pendingOriginal || interim}
-            translation={translating ? '…' : ''}
-            originalSize={originalSize}
-            translationSize={translationSize}
-            italicOriginal={!pendingOriginal}
-            dim
-            showDivider={false}
+        {hasInterim && (
+          <SubtitleInterimPreview
+            text={interim}
+            fontSize={originalSize}
           />
         )}
 
@@ -393,43 +386,93 @@ function SubtitleCard({ history, pendingOriginal, interim, translating, fontScal
 function SubtitleEntry({
   original,
   translation,
+  failed,
   originalSize,
   translationSize,
-  italicOriginal,
-  dim,
   showDivider,
 }) {
+  const pending = translation == null && !failed;
   return (
     <div className="mtgv2-fade" style={{ paddingTop: 10, paddingBottom: 10 }}>
       <div
         style={{
           fontSize: originalSize,
-          color: dim ? COLORS.inkFaint : COLORS.inkLo,
+          color: COLORS.inkLo,
           fontWeight: 400,
           lineHeight: 1.4,
-          fontStyle: italicOriginal ? 'italic' : 'normal',
         }}
       >
         {original}
       </div>
-      {translation && (
-        <div
-          style={{
-            fontSize: translationSize,
-            color: dim ? COLORS.inkLo : COLORS.inkHi,
-            fontWeight: 600,
-            lineHeight: 1.3,
-            letterSpacing: '-0.01em',
-            marginTop: 6,
-          }}
-        >
-          {translation}
-        </div>
-      )}
+      <div
+        style={{
+          fontSize: translationSize,
+          color: failed ? COLORS.danger : pending ? COLORS.inkFaint : COLORS.inkHi,
+          fontWeight: 600,
+          lineHeight: 1.3,
+          letterSpacing: '-0.01em',
+          marginTop: 6,
+          minHeight: `${translationSize * 1.3}px`,
+        }}
+      >
+        {failed ? '번역 실패' : pending ? <SubtitleTypingDots /> : translation}
+      </div>
       {showDivider && (
         <div style={{ marginTop: 12, height: 1, background: COLORS.hairline }} />
       )}
     </div>
+  );
+}
+
+function SubtitleInterimPreview({ text, fontSize }) {
+  return (
+    <div className="mtgv2-fade" style={{ paddingTop: 10, paddingBottom: 10 }}>
+      <div className="flex items-center gap-1.5" style={{ marginBottom: 4 }}>
+        <span
+          className="mtgv2-breathe inline-block rounded-full"
+          style={{ width: 6, height: 6, background: COLORS.accent }}
+        />
+        <span
+          className="uppercase"
+          style={{
+            fontSize: 9,
+            letterSpacing: '0.18em',
+            color: COLORS.inkFaint,
+            fontWeight: 500,
+          }}
+        >
+          TYPING
+        </span>
+      </div>
+      <div
+        style={{
+          fontSize,
+          color: COLORS.inkFaint,
+          fontWeight: 400,
+          lineHeight: 1.4,
+          fontStyle: 'italic',
+        }}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function SubtitleTypingDots() {
+  const base = {
+    display: 'inline-block',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    background: COLORS.inkFaint,
+  };
+  return (
+    <span aria-hidden className="inline-flex items-center gap-1 align-middle">
+      <span className="mtgv2-breathe" style={{ ...base, animationDelay: '0ms' }} />
+      <span className="mtgv2-breathe" style={{ ...base, animationDelay: '180ms' }} />
+      <span className="mtgv2-breathe" style={{ ...base, animationDelay: '360ms' }} />
+    </span>
   );
 }
 
