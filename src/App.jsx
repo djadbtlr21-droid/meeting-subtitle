@@ -13,7 +13,6 @@ export default function App() {
   const [sourceLang, setSourceLang] = useState('ko');
   const [fontScale, setFontScale] = useState(1);
   const [history, setHistory] = useState([]);
-  const [pendingOriginal, setPendingOriginal] = useState('');
   const [translating, setTranslating] = useState(0);
   const [translateError, setTranslateError] = useState(null);
   const [errorVisible, setErrorVisible] = useState(false);
@@ -25,12 +24,17 @@ export default function App() {
   const cameraStartRef = useRef(camera.start);
   cameraStartRef.current = camera.start;
 
+  // Fires ONLY on final speech results (isFinal===true). Never on interim.
+  // Step 1: append {original, translation:null} to history immediately.
+  // Step 2: call Gemini translate() once with the complete final sentence.
+  // Step 3: patch the entry with translation when it resolves.
   const handleFinal = useCallback(async (text) => {
     if (!text || text.length < 2) return;
     if (text === lastSentRef.current) return;
     lastSentRef.current = text;
 
-    setPendingOriginal(text);
+    const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setHistory((prev) => [...prev, { id: entryId, original: text, translation: null, failed: false }]);
 
     const detected = detectLang(text, sourceLang);
     const target = otherLang(detected);
@@ -39,13 +43,10 @@ export default function App() {
     setTranslateError(null);
     try {
       const out = await translate(text, detected, target);
-      setHistory((prev) => [
-        ...prev,
-        { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, original: text, translation: out },
-      ]);
-      setPendingOriginal('');
+      setHistory((prev) => prev.map((e) => (e.id === entryId ? { ...e, translation: out } : e)));
     } catch (err) {
       setTranslateError(err.message || '번역 실패');
+      setHistory((prev) => prev.map((e) => (e.id === entryId ? { ...e, failed: true } : e)));
     } finally {
       setTranslating((n) => Math.max(0, n - 1));
     }
@@ -101,7 +102,6 @@ export default function App() {
     : '카메라 꺼짐';
 
   const latestTranslation = history.length > 0 ? history[history.length - 1].translation : '';
-  const hasAnyContent = history.length > 0 || !!pendingOriginal || !!interim;
 
   return (
     <div className="fixed inset-0 w-full h-full bg-[#0a0a0a] text-white overflow-hidden flex flex-col">
@@ -126,11 +126,9 @@ export default function App() {
       <div className="relative w-full h-1/2 overflow-hidden">
         <SubtitleOverlay
           history={history}
-          pendingOriginal={pendingOriginal}
           interim={interim}
           fontScale={fontScale}
           listening={listening}
-          translating={translating > 0}
         />
       </div>
 
